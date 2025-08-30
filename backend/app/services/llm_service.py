@@ -1,17 +1,72 @@
 import os
-from typing import Optional
-from openai import OpenAI
+import json
+import re
+from typing import Optional, Dict, Any
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# 条件付きインポート
+try:
+    import ollama
+    OLLAMA_AVAILABLE = True
+except ImportError:
+    OLLAMA_AVAILABLE = False
+    logger.warning("Ollama がインストールされていません。ローカルLLM機能は利用できません。")
+
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    logger.warning("OpenAI がインストールされていません。クラウドLLM機能は利用できません。")
+
 
 class LLMService:
     def __init__(self):
-        self.client = None
+        self.llm_type = os.getenv('LLM_TYPE', 'ollama')  # 'ollama' or 'openai'
+        self.ollama_client = None
+        self.openai_client = None
+        self.model_name = os.getenv('LLM_MODEL', 'llama2')
         self._initialize_client()
 
     def _initialize_client(self):
+        """
+        LLM クライアントを初期化
+        """
+        if self.llm_type == 'ollama' and OLLAMA_AVAILABLE:
+            self._initialize_ollama()
+        elif self.llm_type == 'openai' and OPENAI_AVAILABLE:
+            self._initialize_openai()
+        else:
+            logger.error(f"指定されたLLMタイプ '{self.llm_type}' は利用できません")
+
+    def _initialize_ollama(self):
+        """
+        Ollama クライアントを初期化
+        """
+        try:
+            self.ollama_client = ollama.Client(
+                host=os.getenv('OLLAMA_HOST', 'http://localhost:11434'))
+            # モデルの存在確認
+            models = self.ollama_client.list()
+            model_names = [model['name'] for model in models['models']]
+
+            if self.model_name not in model_names:
+                logger.warning(
+                    f"モデル '{self.model_name}' が見つかりません。利用可能なモデル: {model_names}")
+                if model_names:
+                    self.model_name = model_names[0]
+                    logger.info(f"デフォルトモデル '{self.model_name}' を使用します")
+                else:
+                    logger.error("利用可能なモデルがありません。Ollamaでモデルをプルしてください。")
+                    return
+
+            logger.info(f"Ollama クライアントが初期化されました (モデル: {self.model_name})")
+        except Exception as e:
+            logger.error(f"Ollama クライアントの初期化に失敗: {str(e)}")
+
+    def _initialize_openai(self):
         """
         OpenAI クライアントを初期化
         """
@@ -21,7 +76,7 @@ class LLMService:
             return
 
         try:
-            self.client = OpenAI(api_key=api_key)
+            self.openai_client = OpenAI(api_key=api_key)
             logger.info("OpenAI クライアントが初期化されました")
         except Exception as e:
             logger.error(f"OpenAI クライアントの初期化に失敗: {str(e)}")
@@ -30,30 +85,67 @@ class LLMService:
         """
         LLMを使用してレスポンスを生成
         """
-        if not self.client:
-            return "LLMサービスが利用できません。APIキーを確認してください。"
+        system_prompt = "あなたはAWSとAzureのクラウドインフラに精通した専門家です。ユーザーの質問に対して、正確で実用的な回答を日本語で提供してください。"
 
+        if self.llm_type == 'ollama' and self.ollama_client:
+            return self._generate_ollama_response(system_prompt, prompt, max_tokens)
+        elif self.llm_type == 'openai' and self.openai_client:
+            return self._generate_openai_response(system_prompt, prompt, max_tokens)
+        else:
+            return "LLMサービスが利用できません。設定を確認してください。"
+
+    def _generate_ollama_response(self, system_prompt: str, user_prompt: str, max_tokens: int) -> str:
+        """
+        Ollamaを使用してレスポンスを生成
+        """
         try:
-            response = self.client.chat.completions.create(
+            response = self.ollama_client.chat(
+                model=self.model_name,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_prompt
+                    },
+                    {
+                        "role": "user",
+                        "content": user_prompt
+                    }
+                ],
+                options={
+                    "num_predict": max_tokens,
+                    "temperature": 0.7
+                }
+            )
+            return response['message']['content']
+
+        except Exception as e:
+            logger.error(f"Ollama レスポンス生成エラー: {str(e)}")
+            return f"レスポンス生成中にエラーが発生しました: {str(e)}"
+
+    def _generate_openai_response(self, system_prompt: str, user_prompt: str, max_tokens: int) -> str:
+        """
+        OpenAIを使用してレスポンスを生成
+        """
+        try:
+            response = self.openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {
                         "role": "system",
-                        "content": "あなたはAWSとAzureのクラウドインフラに精通した専門家です。ユーザーの質問に対して、正確で実用的な回答を日本語で提供してください。"
+                        "content": system_prompt
                     },
                     {
                         "role": "user",
-                        "content": prompt
+                        "content": user_prompt
                     }
                 ],
                 max_tokens=max_tokens,
                 temperature=0.7
             )
-
             return response.choices[0].message.content
 
         except Exception as e:
-            logger.error(f"LLM レスポンス生成エラー: {str(e)}")
+            logger.error(f"OpenAI レスポンス生成エラー: {str(e)}")
             return f"レスポンス生成中にエラーが発生しました: {str(e)}"
 
     def analyze_user_intent(self, user_message: str) -> dict:
@@ -84,7 +176,6 @@ class LLMService:
         response = self.generate_response(prompt, max_tokens=200)
 
         try:
-            import json
             # JSONレスポンスを抽出
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if json_match:

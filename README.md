@@ -31,6 +31,7 @@ AWS と Azure のリソース情報を自然言語で取得・閲覧するため
 - Node.js 16 以上
 - AWS CLI (AWS リソースアクセス用)
 - Azure CLI (Azure リソースアクセス用)
+- Ollama (ローカルLLM使用時)
 
 ### 1. リポジトリのクローン
 
@@ -140,7 +141,10 @@ npm test
 
 | 変数名                  | 説明                           | 必須 |
 | ----------------------- | ------------------------------ | ---- |
-| `OPENAI_API_KEY`        | OpenAI API キー                | Yes  |
+| `LLM_TYPE`              | LLMタイプ (ollama/openai)      | Yes  |
+| `LLM_MODEL`             | 使用するモデル名               | No   |
+| `OLLAMA_HOST`           | OllamaサーバーのURL            | No   |
+| `OPENAI_API_KEY`        | OpenAI API キー                | No*  |
 | `AWS_ACCESS_KEY_ID`     | AWS アクセスキー               | Yes  |
 | `AWS_SECRET_ACCESS_KEY` | AWS シークレットキー           | Yes  |
 | `AWS_DEFAULT_REGION`    | AWS デフォルトリージョン       | No   |
@@ -148,6 +152,8 @@ npm test
 | `AZURE_CLIENT_SECRET`   | Azure クライアントシークレット | Yes  |
 | `AZURE_TENANT_ID`       | Azure テナントID               | Yes  |
 | `AZURE_SUBSCRIPTION_ID` | Azure サブスクリプションID     | Yes  |
+
+* `LLM_TYPE=openai` の場合のみ必須
 
 ### 認証設定
 
@@ -170,8 +176,24 @@ make build
 # アプリケーションの起動
 docker-compose up -d
 
+# Ollama モデルのダウンロード（初回のみ）
+docker-compose exec ollama ollama pull llama2:7b
+
 # ログの確認
 docker-compose logs -f
+```
+
+### ローカルLLMの設定
+
+```bash
+# 軽量なモデル（推奨）
+docker-compose exec ollama ollama pull llama2:7b
+
+# より高性能なモデル（GPU推奨）
+docker-compose exec ollama ollama pull llama2:13b
+
+# 日本語特化モデル
+docker-compose exec ollama ollama pull llama2:7b-chat
 ```
 
 ## 📚 API ドキュメント

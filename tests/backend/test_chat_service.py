@@ -113,3 +113,33 @@ class TestChatService:
 
         assert "申し訳ございません" in result
         assert "利用可能な機能" in result
+
+    @patch('app.services.chat_service.LLMService')
+    def test_llm_service_ollama_mode(self, mock_llm_service):
+        """OllamaモードでのLLMサービステスト"""
+        # モックの設定
+        mock_llm_instance = Mock()
+        mock_llm_service.return_value = mock_llm_instance
+        mock_llm_instance.generate_response.return_value = "Ollamaからのレスポンス"
+
+        # テスト実行
+        result = self.chat_service._handle_general_question("テスト質問")
+
+        # アサーション
+        assert "Ollamaからのレスポンス" in result
+        mock_llm_instance.generate_response.assert_called_once()
+
+    @patch('app.services.chat_service.LLMService')
+    def test_llm_service_openai_mode(self, mock_llm_service):
+        """OpenAIモードでのLLMサービステスト"""
+        # モックの設定
+        mock_llm_instance = Mock()
+        mock_llm_service.return_value = mock_llm_instance
+        mock_llm_instance.generate_response.return_value = "OpenAIからのレスポンス"
+
+        # テスト実行
+        result = self.chat_service._handle_general_question("テスト質問")
+
+        # アサーション
+        assert "OpenAIからのレスポンス" in result
+        mock_llm_instance.generate_response.assert_called_once()
