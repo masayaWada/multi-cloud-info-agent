@@ -27,7 +27,8 @@ class LLMService:
         self.llm_type = os.getenv('LLM_TYPE', 'ollama')  # 'ollama' or 'openai'
         self.ollama_client = None
         self.openai_client = None
-        self.model_name = os.getenv('LLM_MODEL', 'llama2')
+        self.model_name = os.getenv('LLM_MODEL', 'tinyllama')
+        # 日本語固定の仕様に変更
         self._initialize_client()
 
     def _initialize_client(self):
@@ -81,16 +82,24 @@ class LLMService:
         except Exception as e:
             logger.error(f"OpenAI クライアントの初期化に失敗: {str(e)}")
 
-    def generate_response(self, prompt: str, max_tokens: int = 1000) -> str:
+    def generate_response(self, prompt: str, max_tokens: int = 1000, context: str = "") -> str:
         """
         LLMを使用してレスポンスを生成
         """
-        system_prompt = "あなたはAWSとAzureのクラウドインフラに精通した専門家です。ユーザーの質問に対して、正確で実用的な回答を日本語で提供してください。"
+        # 日本語固定のシステムプロンプト
+        system_prompt = """You are an expert in AWS and Azure cloud infrastructure."""
+
+        # ユーザープロンプトに日本語指示を追加
+        japanese_prompt = f"""日本語で回答してください。
+
+質問: {prompt}
+
+上記の質問について、日本語で分かりやすく回答してください。"""
 
         if self.llm_type == 'ollama' and self.ollama_client:
-            return self._generate_ollama_response(system_prompt, prompt, max_tokens)
+            return self._generate_ollama_response(system_prompt, japanese_prompt, max_tokens)
         elif self.llm_type == 'openai' and self.openai_client:
-            return self._generate_openai_response(system_prompt, prompt, max_tokens)
+            return self._generate_openai_response(system_prompt, japanese_prompt, max_tokens)
         else:
             return "LLMサービスが利用できません。設定を確認してください。"
 
@@ -113,7 +122,9 @@ class LLMService:
                 ],
                 options={
                     "num_predict": max_tokens,
-                    "temperature": 0.7
+                    "temperature": 0.3,
+                    "top_p": 0.9,
+                    "repeat_penalty": 1.1
                 }
             )
             return response['message']['content']

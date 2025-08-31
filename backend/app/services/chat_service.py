@@ -28,6 +28,8 @@ class ChatService:
                 return self._handle_log_query(intent)
             elif intent['type'] == 'metric_query':
                 return self._handle_metric_query(intent)
+            elif intent['type'] == 'iam_policy_creation':
+                return self._handle_iam_policy_creation(user_message, intent)
             elif intent['type'] == 'general_question':
                 return self._handle_general_question(user_message)
             else:
@@ -39,6 +41,79 @@ class ChatService:
 
     def _analyze_intent(self, message: str) -> Dict[str, Any]:
         """
+        メッセージの意図を解析する（キーワードベース + LLM補完）
+        """
+        # キーワードベースの意図解析
+        intent = self._analyze_intent_by_keywords(message)
+
+        # LLMによる補完解析（必要に応じて）
+        if intent['confidence'] < 0.8:
+            llm_intent = self._analyze_intent_by_llm(message)
+            if llm_intent['confidence'] > intent['confidence']:
+                intent = llm_intent
+
+        return intent
+
+    def _analyze_intent_by_keywords(self, message: str) -> Dict[str, Any]:
+        """
+        キーワードベースで意図を解析
+        """
+        message_lower = message.lower()
+
+        # IAMポリシー作成の検出
+        if any(keyword in message_lower for keyword in ['iam', 'ポリシー', 'policy', '権限', 'permission']):
+            if any(keyword in message_lower for keyword in ['作成', 'create', 'json', '形式']):
+                return {
+                    "type": "iam_policy_creation",
+                    "provider": "aws",
+                    "service": "iam",
+                    "confidence": 0.9,
+                    "parameters": {
+                        "action": "create_policy",
+                        "format": "json" if "json" in message_lower else "text"
+                    }
+                }
+
+        # リソース一覧取得の検出
+        if any(keyword in message_lower for keyword in ['一覧', 'list', 'すべて', 'all', 'バケット', 'bucket']):
+            if 's3' in message_lower:
+                return {
+                    "type": "resource_list",
+                    "provider": "aws",
+                    "service": "s3",
+                    "confidence": 0.9,
+                    "parameters": {}
+                }
+            elif 'ec2' in message_lower:
+                return {
+                    "type": "resource_list",
+                    "provider": "aws",
+                    "service": "ec2",
+                    "confidence": 0.9,
+                    "parameters": {}
+                }
+
+        # ログクエリの検出
+        if any(keyword in message_lower for keyword in ['ログ', 'log', 'エラー', 'error']):
+            return {
+                "type": "log_query",
+                "provider": "both",
+                "service": "unknown",
+                "confidence": 0.8,
+                "parameters": {}
+            }
+
+        # デフォルト
+        return {
+            "type": "general_question",
+            "provider": "both",
+            "service": "unknown",
+            "confidence": 0.5,
+            "parameters": {}
+        }
+
+    def _analyze_intent_by_llm(self, message: str) -> Dict[str, Any]:
+        """
         LLMを使用してメッセージの意図を解析する
         """
         prompt = f"""
@@ -48,9 +123,10 @@ class ChatService:
         
         以下の形式でJSONを返してください:
         {{
-            "type": "resource_list|log_query|metric_query|general_question",
+            "type": "resource_list|log_query|metric_query|general_question|iam_policy_creation",
             "provider": "aws|azure|both",
-            "service": "ec2|s3|vm|storage|etc",
+            "service": "ec2|s3|vm|storage|iam|etc",
+            "confidence": 0.0-1.0,
             "parameters": {{}}
         }}
         
@@ -58,24 +134,31 @@ class ChatService:
         - resource_list: リソース一覧の取得
         - log_query: ログの検索・参照
         - metric_query: メトリクスの取得
+        - iam_policy_creation: IAMポリシーの作成
         - general_question: 一般的な質問
         """
 
-        response = self.llm_service.generate_response(prompt)
+        response = self.llm_service.generate_response(prompt, max_tokens=200)
 
         # JSONレスポンスをパース
         try:
             import json
-            intent = json.loads(response)
-            return intent
-        except:
-            # パースに失敗した場合はデフォルトの意図を返す
-            return {
-                "type": "general_question",
-                "provider": "both",
-                "service": "unknown",
-                "parameters": {}
-            }
+            import re
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                intent = json.loads(json_match.group())
+                return intent
+        except Exception as e:
+            logger.error(f"LLM意図解析のJSONパースエラー: {str(e)}")
+
+        # パースに失敗した場合はデフォルトの意図を返す
+        return {
+            "type": "general_question",
+            "provider": "both",
+            "service": "unknown",
+            "confidence": 0.3,
+            "parameters": {}
+        }
 
     def _handle_resource_list_request(self, intent: Dict[str, Any]) -> str:
         """
@@ -151,8 +234,164 @@ class ChatService:
 
         return self.llm_service.generate_response(prompt)
 
+    def _handle_iam_policy_creation(self, message: str, intent: Dict[str, Any]) -> str:
+        """
+        IAMポリシー作成リクエストを処理
+        """
+        # テンプレートベースのIAMポリシー生成
+        if intent.get('parameters', {}).get('format') == 'json':
+            return self._generate_iam_policy_json(message)
+        else:
+            return self._generate_iam_policy_explanation(message)
+
+    def _generate_iam_policy_json(self, message: str) -> str:
+        """
+        IAMポリシーをJSON形式で生成
+        """
+        # メッセージから要件を解析
+        message_lower = message.lower()
+
+        # 読み取り専用 + サポートリクエストのポリシー
+        if '参照' in message_lower or 'read' in message_lower:
+            if 'サポート' in message_lower or 'support' in message_lower:
+                policy = {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "ReadOnlyAccess",
+                            "Effect": "Allow",
+                            "Action": [
+                                "iam:Get*",
+                                "iam:List*",
+                                "iam:Describe*",
+                                "ec2:Describe*",
+                                "s3:Get*",
+                                "s3:List*",
+                                "rds:Describe*",
+                                "lambda:Get*",
+                                "lambda:List*",
+                                "cloudformation:Describe*",
+                                "cloudformation:Get*",
+                                "cloudformation:List*",
+                                "cloudwatch:Get*",
+                                "cloudwatch:List*",
+                                "cloudwatch:Describe*"
+                            ],
+                            "Resource": "*"
+                        },
+                        {
+                            "Sid": "SupportAccess",
+                            "Effect": "Allow",
+                            "Action": [
+                                "support:*"
+                            ],
+                            "Resource": "*"
+                        }
+                    ]
+                }
+            else:
+                # 読み取り専用のみ
+                policy = {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "ReadOnlyAccess",
+                            "Effect": "Allow",
+                            "Action": [
+                                "iam:Get*",
+                                "iam:List*",
+                                "iam:Describe*",
+                                "ec2:Describe*",
+                                "s3:Get*",
+                                "s3:List*",
+                                "rds:Describe*",
+                                "lambda:Get*",
+                                "lambda:List*",
+                                "cloudformation:Describe*",
+                                "cloudformation:Get*",
+                                "cloudformation:List*",
+                                "cloudwatch:Get*",
+                                "cloudwatch:List*",
+                                "cloudwatch:Describe*"
+                            ],
+                            "Resource": "*"
+                        }
+                    ]
+                }
+        else:
+            # デフォルトの読み取り専用ポリシー
+            policy = {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Sid": "ReadOnlyAccess",
+                        "Effect": "Allow",
+                        "Action": [
+                            "iam:Get*",
+                            "iam:List*",
+                            "ec2:Describe*",
+                            "s3:Get*",
+                            "s3:List*"
+                        ],
+                        "Resource": "*"
+                    }
+                ]
+            }
+
+        import json
+        return f"""## AWS IAMポリシー（JSON形式）
+
+以下のIAMポリシーは、すべてのリソースに対する読み取り権限とサポートリクエスト権限を提供します：
+
+```json
+{json.dumps(policy, indent=2, ensure_ascii=False)}
+```
+
+### 使用方法
+1. AWS IAMコンソールにアクセス
+2. 「ポリシー」→「ポリシーの作成」を選択
+3. 上記のJSONをコピー&ペースト
+4. ポリシー名を設定して保存
+5. ユーザーまたはロールにポリシーをアタッチ
+
+### 注意事項
+- このポリシーは読み取り専用アクセスを提供します
+- リソースの作成、変更、削除はできません
+- サポートリクエストの作成が可能です"""
+
+    def _generate_iam_policy_explanation(self, message: str) -> str:
+        """
+        IAMポリシーの説明を生成
+        """
+        return """## AWS IAMポリシー作成について
+
+### 読み取り専用 + サポートリクエスト権限のポリシー
+
+このポリシーは以下の権限を提供します：
+
+#### 読み取り権限
+- **IAM**: ユーザー、ロール、ポリシーの参照
+- **EC2**: インスタンス、セキュリティグループ、VPCの参照
+- **S3**: バケットとオブジェクトの参照
+- **RDS**: データベースインスタンスの参照
+- **Lambda**: 関数の参照
+- **CloudFormation**: スタックの参照
+- **CloudWatch**: メトリクスとログの参照
+
+#### サポート権限
+- サポートケースの作成・更新
+- サポートドキュメントの参照
+
+### セキュリティのベストプラクティス
+1. **最小権限の原則**: 必要最小限の権限のみを付与
+2. **定期的な見直し**: ポリシーの定期的な監査
+3. **条件付きアクセス**: IPアドレスや時間による制限
+4. **MFAの強制**: 多要素認証の有効化
+
+JSON形式のポリシーが必要な場合は、「JSON形式で出力してください」とお伝えください。"""
+
     def _handle_unknown_request(self, message: str) -> str:
         """
         未知のリクエストを処理
         """
-        return f"申し訳ございませんが、「{message}」というリクエストを理解できませんでした。\n\n利用可能な機能:\n- リソース一覧の取得（例：「EC2インスタンス一覧を教えて」）\n- ログの確認（例：「最近のエラーログを見せて」）\n- 一般的な質問（例：「AWSの料金について教えて」）"
+        return f"申し訳ございませんが、「{message}」というリクエストを理解できませんでした。\n\n利用可能な機能:\n- リソース一覧の取得（例：「EC2インスタンス一覧を教えて」）\n- ログの確認（例：「最近のエラーログを見せて」）\n- IAMポリシーの作成（例：「読み取り専用のIAMポリシーを作成してください」）\n- 一般的な質問（例：「AWSの料金について教えて」）"

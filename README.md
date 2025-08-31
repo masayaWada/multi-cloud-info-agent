@@ -1,6 +1,7 @@
 # Multi-Cloud Info Agent
 
 AWS と Azure のリソース情報を自然言語で取得・閲覧するための Web アプリケーションです。
+**すべての回答は日本語で提供されます。**
 
 ## 🌟 特徴
 
@@ -139,12 +140,14 @@ npm test
 
 ### 環境変数
 
-| 変数名                  | 説明                           | 必須 |
-| ----------------------- | ------------------------------ | ---- |
-| `LLM_TYPE`              | LLMタイプ (ollama/openai)      | Yes  |
-| `LLM_MODEL`             | 使用するモデル名               | No   |
-| `OLLAMA_HOST`           | OllamaサーバーのURL            | No   |
-| `OPENAI_API_KEY`        | OpenAI API キー                | No*  |
+| 変数名           | 説明                      | 必須 |
+| ---------------- | ------------------------- | ---- |
+| `LLM_TYPE`       | LLMタイプ (ollama/openai) | Yes  |
+| `LLM_MODEL`      | 使用するモデル名          | No   |
+| `OLLAMA_HOST`    | OllamaサーバーのURL       | No   |
+| `OPENAI_API_KEY` | OpenAI API キー           | No*  |
+
+**注意:** 回答は日本語固定です。言語選択機能はありません。
 | `AWS_ACCESS_KEY_ID`     | AWS アクセスキー               | Yes  |
 | `AWS_SECRET_ACCESS_KEY` | AWS シークレットキー           | Yes  |
 | `AWS_DEFAULT_REGION`    | AWS デフォルトリージョン       | No   |

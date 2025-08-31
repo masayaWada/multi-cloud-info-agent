@@ -3,6 +3,7 @@
 ## 概要
 
 Multi-Cloud Info Agent は、AWS と Azure のリソース情報を自然言語で取得・閲覧するための REST API を提供します。
+**注意: すべての回答は日本語で提供されます。**
 
 ## ベースURL
 
@@ -23,6 +24,7 @@ http://localhost:5000
 サーバーの状態を確認します。
 
 **レスポンス:**
+
 ```json
 {
   "status": "healthy",
@@ -37,6 +39,7 @@ http://localhost:5000
 自然言語でクラウドリソースに関する質問を送信し、回答を受け取ります。
 
 **リクエスト:**
+
 ```json
 {
   "message": "EC2インスタンス一覧を教えて"
@@ -44,6 +47,7 @@ http://localhost:5000
 ```
 
 **レスポンス:**
+
 ```json
 {
   "response": "AWS EC2 リソース一覧:\n\n- web-server-01: running\n- db-server-01: stopped\n...",
@@ -51,7 +55,10 @@ http://localhost:5000
 }
 ```
 
+**注意:** すべての回答は日本語で提供されます。
+
 **エラーレスポンス:**
+
 ```json
 {
   "error": "内部サーバーエラーが発生しました",
@@ -66,14 +73,17 @@ http://localhost:5000
 AWS リソースの一覧を取得します。
 
 **クエリパラメータ:**
+
 - `type` (optional): リソースタイプ (`ec2`, `s3`, `rds`)
 
 **例:**
+
 ```
 GET /api/resources/aws?type=ec2
 ```
 
 **レスポンス:**
+
 ```json
 {
   "resources": [
@@ -100,14 +110,17 @@ GET /api/resources/aws?type=ec2
 Azure リソースの一覧を取得します。
 
 **クエリパラメータ:**
+
 - `type` (optional): リソースタイプ (`vm`, `storage`)
 
 **例:**
+
 ```
 GET /api/resources/azure?type=vm
 ```
 
 **レスポンス:**
+
 ```json
 {
   "resources": [
@@ -132,15 +145,18 @@ GET /api/resources/azure?type=vm
 クラウドサービスのログを取得します。
 
 **クエリパラメータ:**
+
 - `provider` (required): クラウドプロバイダー (`aws`, `azure`)
 - `service` (optional): サービス名
 
 **例:**
+
 ```
 GET /api/logs?provider=aws&service=ec2
 ```
 
 **レスポンス:**
+
 ```json
 {
   "logs": [
