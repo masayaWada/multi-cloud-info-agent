@@ -190,7 +190,7 @@ class ChatService:
 
         except Exception as e:
             logger.error(f"リソース一覧取得エラー: {str(e)}")
-            return f"リソース一覧の取得中にエラーが発生しました: {str(e)}"
+            return "申し訳ございません。リソース一覧の取得中にエラーが発生しました。"
 
     def _handle_log_query(self, intent: Dict[str, Any]) -> str:
         """
@@ -211,7 +211,7 @@ class ChatService:
 
         except Exception as e:
             logger.error(f"ログ取得エラー: {str(e)}")
-            return f"ログの取得中にエラーが発生しました: {str(e)}"
+            return "申し訳ございません。ログの取得中にエラーが発生しました。"
 
     def _handle_metric_query(self, intent: Dict[str, Any]) -> str:
         """
