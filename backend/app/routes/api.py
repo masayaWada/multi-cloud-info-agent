@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from app.services.chat_service import ChatService
 from app.services.mcp_service import MCPService
 from app.utils.logger import get_logger
@@ -31,7 +31,8 @@ def chat():
     except Exception as e:
         logger.error(f"チャット処理エラー: {str(e)}")
         return jsonify({
-            'error': '内部サーバーエラーが発生しました'
+            'error': '内部サーバーエラーが発生しました',
+            'debug_info': str(e) if current_app.config.get('DEBUG', False) else None
         }), 500
 
 
@@ -50,7 +51,10 @@ def get_aws_resources():
 
     except Exception as e:
         logger.error(f"AWS リソース取得エラー: {str(e)}")
-        return jsonify({'error': '内部サーバーエラーが発生しました'}), 500
+        return jsonify({
+            'error': '内部サーバーエラーが発生しました',
+            'debug_info': str(e) if current_app.config.get('DEBUG', False) else None
+        }), 500
 
 
 @api_bp.route('/resources/azure', methods=['GET'])
@@ -68,7 +72,10 @@ def get_azure_resources():
 
     except Exception as e:
         logger.error(f"Azure リソース取得エラー: {str(e)}")
-        return jsonify({'error': '内部サーバーエラーが発生しました'}), 500
+        return jsonify({
+            'error': '内部サーバーエラーが発生しました',
+            'debug_info': str(e) if current_app.config.get('DEBUG', False) else None
+        }), 500
 
 
 @api_bp.route('/logs', methods=['GET'])
@@ -87,4 +94,7 @@ def get_logs():
 
     except Exception as e:
         logger.error(f"ログ取得エラー: {str(e)}")
-        return jsonify({'error': '内部サーバーエラーが発生しました'}), 500
+        return jsonify({
+            'error': '内部サーバーエラーが発生しました',
+            'debug_info': str(e) if current_app.config.get('DEBUG', False) else None
+        }), 500

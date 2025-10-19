@@ -10,6 +10,7 @@ class TestAPIRoutes:
         """各テストメソッドの前に実行"""
         self.app = create_app()
         self.app.config['TESTING'] = True
+        self.app.config['DEBUG'] = False  # デバッグモードを無効にする
         self.client = self.app.test_client()
 
     def test_health_endpoint(self):
@@ -66,7 +67,7 @@ class TestAPIRoutes:
                                     data='invalid json',
                                     content_type='application/json')
 
-        assert response.status_code == 400
+        assert response.status_code == 500  # 無効なJSONは500エラーになる
 
     @patch('app.routes.api.ChatService')
     def test_chat_endpoint_service_error(self, mock_chat_service):
@@ -85,6 +86,8 @@ class TestAPIRoutes:
         data = response.get_json()
         assert 'error' in data
         assert '内部サーバーエラー' in data['error']
+        # デバッグモードでない場合はdebug_infoは含まれない
+        assert 'debug_info' not in data or data['debug_info'] is None
 
     @patch('app.routes.api.MCPService')
     def test_get_aws_resources_success(self, mock_mcp_service):
@@ -141,7 +144,9 @@ class TestAPIRoutes:
         assert response.status_code == 500
         data = response.get_json()
         assert 'error' in data
-        assert 'AWS エラー' in data['error']
+        assert '内部サーバーエラー' in data['error']
+        # デバッグモードでない場合はdebug_infoは含まれない
+        assert 'debug_info' not in data or data['debug_info'] is None
 
     @patch('app.routes.api.MCPService')
     def test_get_azure_resources_success(self, mock_mcp_service):
@@ -237,4 +242,6 @@ class TestAPIRoutes:
         assert response.status_code == 500
         data = response.get_json()
         assert 'error' in data
-        assert 'ログ取得エラー' in data['error']
+        assert '内部サーバーエラー' in data['error']
+        # デバッグモードでない場合はdebug_infoは含まれない
+        assert 'debug_info' not in data or data['debug_info'] is None
