@@ -31,8 +31,7 @@ def chat():
     except Exception as e:
         logger.error(f"チャット処理エラー: {str(e)}")
         return jsonify({
-            'error': '内部サーバーエラーが発生しました',
-            'details': str(e)
+            'error': '内部サーバーエラーが発生しました'
         }), 500
 
 
@@ -51,7 +50,7 @@ def get_aws_resources():
 
     except Exception as e:
         logger.error(f"AWS リソース取得エラー: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': '内部サーバーエラーが発生しました'}), 500
 
 
 @api_bp.route('/resources/azure', methods=['GET'])
@@ -69,7 +68,7 @@ def get_azure_resources():
 
     except Exception as e:
         logger.error(f"Azure リソース取得エラー: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': '内部サーバーエラーが発生しました'}), 500
 
 
 @api_bp.route('/logs', methods=['GET'])
@@ -88,4 +87,4 @@ def get_logs():
 
     except Exception as e:
         logger.error(f"ログ取得エラー: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': '内部サーバーエラーが発生しました'}), 500
